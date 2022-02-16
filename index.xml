@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Keagan Shatos</title>
+    <link>https://kshatos.github.io/</link>
+    <description>Recent content on Keagan Shatos</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language><atom:link href="https://kshatos.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>About</title>
+      <link>https://kshatos.github.io/about/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://kshatos.github.io/about/</guid>
+      <description>This is me.</description>
+    </item>
+    
+    <item>
+      <title>Test Post</title>
+      <link>https://kshatos.github.io/posts/test_post/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://kshatos.github.io/posts/test_post/</guid>
+      <description>TEST Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed sed mauris accumsan nibh lacinia tempor et iaculis risus. Sed ut erat at ex blandit sagittis. Donec vel diam eget lectus viverra suscipit blandit in metus. Morbi condimentum justo sed purus vestibulum, eget ultrices massa consectetur. Aliquam suscipit rhoncus lacus ac sagittis. Nunc aliquam libero ut sem tempus luctus. Maecenas aliquet leo sit amet nunc convallis varius. Donec sem metus, convallis ac lectus vel, volutpat vehicula risus.</description>
+    </item>
+    
+  </channel>
+</rss>
