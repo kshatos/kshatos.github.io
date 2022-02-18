@@ -7,6 +7,15 @@
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language><atom:link href="https://kshatos.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
     <item>
+      <title>Physically Based Rendering</title>
+      <link>https://kshatos.github.io/posts/physically_based_rendering/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://kshatos.github.io/posts/physically_based_rendering/</guid>
+      <description>Rendering 3D scenes is an important part of communicating information to the user in many software applications. Basing the rendering algorithm on a physical model of light can produce images that are more realistic, and therefore can provide the user a more intuitive understanding of the 3D scenes (as well as often being more pleasing to the eye). So how does light work, and how can we simulate it in our rendering algorithms?</description>
+    </item>
+    
+    <item>
       <title>Test Post</title>
       <link>https://kshatos.github.io/posts/test_post/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>

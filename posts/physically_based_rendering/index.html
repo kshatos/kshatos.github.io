@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<title>Physically Based Rendering | Keagan Shatos</title>
+<meta charset="utf-8">
+<meta name="generator" content="Hugo 0.92.2" />
+<meta name="description" content="Keagan&#39;s Blog">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://kshatos.github.io/css/index.css">
+<link rel="canonical" href="https://kshatos.github.io/posts/physically_based_rendering/">
+<link rel="alternate" type="application/rss+xml" href="" title="Keagan Shatos">
+<link rel="stylesheet" href="https://kshatos.github.io/katex/katex.min.css">
+<script defer src="https://kshatos.github.io/katex/katex.min.js"></script>
+<script defer src="https://kshatos.github.io/katex/contrib/auto-render.min.js" onload="renderMathInElement(document.body)"></script>
+
+<header>
+  
+    <a href="https://kshatos.github.io/" class="title">Keagan Shatos</a>
+  
+  
+    <nav>
+    
+      <a href="/about/">About</a>
+    
+      <a href="https://github.com/kshatos/">Github</a>
+    
+      <a href="/posts/">Posts</a>
+    
+    </nav>
+  
+</header>
+
+<article>
+  <header>
+    <h1>Physically Based Rendering</h1>
+    
+  </header>
+  <p>Rendering 3D scenes is an important part of communicating information to the user in many software applications. Basing the rendering algorithm on a physical model of light can produce images that are more realistic, and therefore can provide the user a more intuitive understanding of the 3D scenes (as well as often being more pleasing to the eye). So how does light work, and how can we simulate it in our rendering algorithms?</p>
+<h2 id="electromagnetic-waves">Electromagnetic Waves</h2>
+<p>For most contexts, light is well described by the electromagnetic field. All lighting information is contained in two vector fields (electric and magnetic) that permeate all of space and evolve in time according to the Maxwell equations.</p>
+<p>$$ \nabla\cdot E = \frac{\rho}{\epsilon_0} $$
+$$ \nabla\cdot B = 0 $$
+$$ \nabla\times E = - \dot{B} $$
+$$ \nabla\times B = \mu_0(J + \epsilon_0 \dot{E}) $$</p>
+<p>The characteristic solution to these equations in a vacuum is a plane wave of any frequency traveling through space at a constant speed. General solutions can be built by adding up these kinds of waves. The results can form complex patterns, especially when interacting with solid objects.</p>
+<img style="width:auto;height:250px;" src="https://upload.wikimedia.org/wikipedia/commons/9/99/EM-Wave.gif">
+<img style="width:auto;height:250px;" src="https://thumbs.gfycat.com/AnimatedGregariousFly-max-1mb.gif">
+<h2 id="the-human-eye">The Human Eye</h2>
+<p>How does this relate to what we actually see? When a person sees, their brain is basically responding to the electromagnetic field vibrating at a small point in the back of their eyeball. This response is experienced as a color. Human eyes however are only sensitive to light with a wavelength from about 400-700 nm. For reference, a human hair is about 80,000 nm wide.</p>
+<img style="width:400px;height:auto;" src="https://upload.wikimedia.org/wikipedia/commons/d/d9/Linear_visible_spectrum.svg">
+<p>The color one sees is not determined by the amount of light at every frequency in this range, but rather by the cumulative response of three separate types of cone cells. Each type of cone has different weights for each frequency and sums them up to produce a total response. A useful consequence of this, is that you can stimulate the eye with light of different frequency profiles and get the same color response. For example, the following frequency profiles would produce the same color when seen.</p>
+<img style="width:auto;height:250px;" src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Cones_SMJ2_E.svg/1280px-Cones_SMJ2_E.svg.png">
+<img style="width:auto;height:250px;" src="/images/equivalent_spectral.png">
+<p>As you can see, the human eye is a very lossy measurement device. All of the information in the electromagnetic field at a point is filtered down to how strongly each of the 3 types of cones respond. This allows us to represent light frequency data as a vector of 3 weights for the colors red, green and blue, while still being able to produce most of the colors a person can see.</p>
+<h2 id="geometric-optics">Geometric Optics</h2>
+<p>If you take the limit of the maxwell equations for very short wavelengths (relative to the size of the geometry of interest), you can show that wavefronts of light travel in straight lines radiating out from the wavefront. This leads to the concept of a light ray, essentially a small chunk of a wavefront. A light ray carries a small piece of the light energy along a straight line through a homogeneous material. When a ray propagates through an interface of two different optical media, some of the ray is reflected back at an equal angle of incidence, some propagates through the material at a different angle, and some is absorbed. The ratios and diffraction angle depend on the optical properties of the two materials.</p>
+<img style="width:auto;height:250px;" src=https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Ray_optics_diagram_incidence_reflection_and_refraction.svg/1920px-Ray_optics_diagram_incidence_reflection_and_refraction.svg.png>
+<img style="width:auto;height:250px;" src=https://upload.wikimedia.org/wikipedia/commons/d/dc/Snells_law_wavefronts.gif>
+<p>In this model, simulating light is simplified to breaking light sources up into rays, propagating them along straight lines through space, and reflecting/refracting them at surfaces.</p>
+<h2 id="diffuse-and-specular-reflections">Diffuse and Specular Reflections</h2>
+<p>The reflected light changes direction and goes on its way producing a specular reflection. The refracted light however doesn&rsquo;t stop there. The ray can bounce around and reflect/refract many more times off of internal crystal boundaries in the material. The net result is that many rays return back through the original surface traveling in essentially random directions, producing a diffuse reflection.</p>
+<img style="width:auto;height:250px;" src=https://upload.wikimedia.org/wikipedia/commons/2/21/Diffuse_reflection.gif>
+<p>Different materials produce different kinds of reflections depending on their optical properties. They can roughly be sorted into two types, dielectric and metallic. Dielectrics are weak absorbers, and so produce a spectral reflection that is unaltered. The diffuse reflection however gets absorbed a little bit by the many interactions, leading to diffuse light being the color of the material. Metals on the other hand are strong absorbers and so filter the spectral reflection to the color of the material and absorb all diffuse light before it can escape.</p>
+<img style="width:auto;height:200px;" src=https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Copper_Pot.jpg/330px-Copper_Pot.jpg>
+<img style="width:auto;height:200px;" src=https://www.maxpixel.net/static/photo/1x/Joy-Ball-Colorful-Play-Balls-Background-Fun-71697.jpg>
+<h2 id="microfacet">Microfacet</h2>
+<p>For most surfaces, the scale of the smallest features are larger than the wavelengths of visible light, but much smaller than the size of the pixel being shaded. In this in-between scale, geometric optics can be used for reflections, but there is a distribution of normals over the pixel. In order to apply the geometric optics model, we need to average reflections over this micro geometry.</p>
+<img width=300 src=https://www.researchgate.net/profile/Andrew-Wallace-2/publication/220659824/figure/fig9/AS:380046536658952@1467621563852/An-illustration-of-the-microfacet-surface-model.png>
+<img width=300 src=https://google.github.io/filament/images/diagram_fr_fd.png>
+<p>A small column of parallel incoming light will be reflected in many directions by the micro geometry. These averaged amplitudes are described by a bidirectional reflectance distribution function (BRDF). The function tells you what fraction of light from one incoming direction is transmitted to any other outgoing direction. If you know the incoming distribution of light on a surface and the BRDF, then simply adding up the contributions from each incoming direction yields the total reflected light.</p>
+<p>$$ L_o(v) = \int f_r(v, l) L_i(l) (n \cdot l) d\Omega $$</p>
+<h2 id="a-concrete-model">A concrete model</h2>
+<p>The baseline model used for physically based rendering is called the Cook-Torrance BRDF. The model is parametrized by surface roughness, a metallic parameter, and an albedo color. It is a sum of diffuse and specular terms</p>
+<p>$$ f_{CT} = f_{diffuse} + f_{specular} $$</p>
+<p>The specular term is broken down into 3 factors D, G, and F.</p>
+<p>$$ f_{specular} = \frac{DFG}{4 (l \cdot n)( v \cdot n)} $$</p>
+<p>The D factor accounts for the distribution of normals at the micro level. It&rsquo;s essentially how aligned the average normal is with the halfway vector between the light and view directions. It&rsquo;s calculated from the surface normal, halfway vector, and the roughness parameter.</p>
+<p>$$ D = \frac{\alpha^2}{\pi ((n \cdot h)^2(\alpha^2 - 1) + 1)^2} $$</p>
+<p>The G factor accounts for self-shadowing of the surface. Some points on the surface are blocked from the light source by neighboring bumps, and similarly some reflected rays are blocked from the view direction. For simplicity, most models do not account for more than one reflection. (in principle a blocked ray could reflect back onto the surface, reflect again and head out in the view direction.) Since incoming and outgoing occlusion are identical, the G factor is a product of two identical functions of the incoming and outgoing directions.</p>
+<p>$$ G = \frac{2(n \cdot l)}{(n \cdot l) + \sqrt{\alpha^2 + (1 - \alpha)^2 (n \cdot l)^2}} \frac{2(n \cdot v)}{(n \cdot v) + \sqrt{\alpha^2 + (1 - \alpha)^2 (n \cdot v)^2}} $$</p>
+<p>The F factor accounts for the amount of incoming light that is reflected versus refracted based on the difference in optical properties of the materials. The Fresnel-Schlick approximation is usually used instead of the full Fresnel equations.</p>
+<p>$$ F = F_0 + (1 - F_0) (h \cdot v)^5 $$</p>
+<p>The base reflectivity depends on the material, but can be modeled simply by an albedo color and whether or not the material is metallic.</p>
+<p>$$ F_0 = 0.04 \mu + C_{albedo} (1 - \mu) $$</p>
+<p>The diffuse term uses the Lambertian reflectance model, where reflected light transmits to each direction with the same constant factor.</p>
+<p>$$ f_{diffuse} = \frac{c}{\pi} $$</p>
+<p>The constant factor is determined using energy conservation. The light not reflected by the F term is assumed to contribute to the diffuse term. Its then filtered by a diffuse color.</p>
+<p>$$ c = (1 - F) C_{diffuse} $$</p>
+<p>The diffuse color is the surface albedo modified by whether the surface is metallic or not.</p>
+<p>$$ C_{diffuse} = C_{albedo} (1 - \mu) $$</p>
+<h2 id="light-sources">Light Sources</h2>
+<p>The simplest and most commonly used light sources are punctual lights. A punctual light is infinitely small so only one ray hits the lit surface, simplifying the reflectance equation. They commonly  come in three types, point, directional, and spotlight.</p>
+<p>A point light is infinitely small, emits light equally in all directions, and the intensity follows the inverse square law.</p>
+<p>$$ L_{point} = \frac{\phi}{4 \pi} \frac{1}{d^2} (n \cdot l) $$</p>
+<p>A directional light models a point light so far away that the distance is essentially constant and incoming rays are all parallel.</p>
+<p>$$ L_{directional} = L_{\perp} (n \cdot l) $$</p>
+<p>A spot light is a point light with a directional mask that blocks rays going in certain directions. For a circular spotlight.</p>
+<p>$$ L_{spot} = \frac{\phi}{4 \pi} \frac{1}{d^2} (n \cdot l) \frac{l \cdot d_{light} - \cos(\theta_{outer})}{\cos(\theta_{inner}) - \cos(\theta_{outer})} $$</p>
+<h2 id="tone-mapping">Tone Mapping</h2>
+<p>The model so far has calculated reflected radiance, but this needs to be converted to a color in the range of [0,1] so that the monitor can display it. A simple mapping that does the job is Reinhard&rsquo;s mapping.</p>
+<p>$$ C_{RGB} = \frac{L}{1 + L} $$</p>
+<h2 id="final-algorithm">Final Algorithm</h2>
+<p>With all the pieces in place we can now shade a surface pixel in a scene. To shade a pixel.</p>
+<ol>
+<li>Calculate the surface properties that define the BRDF</li>
+<li>For each visible light, integrate the reflectance equation to get the lights total contribution</li>
+<li>Add up each lights contribution to get the total reflected radiance.</li>
+<li>Convert the total radiance to a color to be displayed on screen</li>
+</ol>
+<h2 id="conclusion">Conclusion</h2>
+<p>The algorithm outlined above uses many approximations but can produce impressive results that capture many of the details of real lighting without requiring a huge number of parameters.</p>
+<h2 id="resources">Resources</h2>
+<ul>
+<li><a href="https://google.github.io/filament/Filament.html">The Filament render engine&rsquo;s documentation</a></li>
+<li><a href="https://learnopengl.com/PBR/Theory">Learn OpenGL&rsquo;s discussion of the theory</a></li>
+<li><a href="https://www.youtube.com/watch?v=j-A0mwsJRmk&amp;t=1354s">Naty Hoffman&rsquo;s Lecture for SIGGRAPH</a></li>
+<li><a href="https://blog.selfshadow.com/publications/s2013-shading-course/hoffman/s2013_pbs_physics_math_notes.pdf">Naty Hoffman&rsquo;s notes on shading physics</a></li>
+</ul>
+
+</article>
+
+
+
+</html>
