@@ -16,12 +16,12 @@
     </item>
     
     <item>
-      <title>Test Post</title>
-      <link>https://kshatos.github.io/posts/test_post/</link>
+      <title>Physically Based Rendering Implementation</title>
+      <link>https://kshatos.github.io/posts/physically_based_rendering_implementation/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       
-      <guid>https://kshatos.github.io/posts/test_post/</guid>
-      <description>TEST Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed sed mauris accumsan nibh lacinia tempor et iaculis risus. Sed ut erat at ex blandit sagittis. Donec vel diam eget lectus viverra suscipit blandit in metus. Morbi condimentum justo sed purus vestibulum, eget ultrices massa consectetur. Aliquam suscipit rhoncus lacus ac sagittis. Nunc aliquam libero ut sem tempus luctus. Maecenas aliquet leo sit amet nunc convallis varius. Donec sem metus, convallis ac lectus vel, volutpat vehicula risus.</description>
+      <guid>https://kshatos.github.io/posts/physically_based_rendering_implementation/</guid>
+      <description>RedGreenBlueMetallicRoughnessOverview This demo was made using javascript, webGL, and the glMatrix library. It is an implementation of the PBR algorithm outlined in my previous post. The scene consists of a sphere, three point lights, and some ambient lighting. The camera spins around the sphere at a constant speed. Most of the code is boiler plate, so I&amp;rsquo;ll focus mostly on the shader code.</description>
     </item>
     
   </channel>
