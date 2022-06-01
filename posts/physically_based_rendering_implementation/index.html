@@ -2,7 +2,7 @@
 <html lang="en-us">
 <title>Physically Based Rendering Implementation | Keagan Shatos</title>
 <meta charset="utf-8">
-<meta name="generator" content="Hugo 0.92.2" />
+<meta name="generator" content="Hugo 0.96.0" />
 <meta name="description" content="Keagan&#39;s Blog">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://kshatos.github.io/css/index.css">
@@ -68,158 +68,158 @@ Main Content
 <p>This demo was made using javascript, webGL, and the glMatrix library. It is an implementation of the PBR algorithm outlined in my <a href="/posts/physically_based_rendering/">previous post</a>. The scene consists of a sphere, three point lights, and some ambient lighting. The camera spins around the sphere at a constant speed. Most of the code is boiler plate, so I&rsquo;ll focus mostly on the shader code. If you&rsquo;re interested, you can find the rest of the details <a href="https://github.com/kshatos/blog-source">here</a>.</p>
 <h2 id="vertex-shader">Vertex Shader</h2>
 <p>The vertex shader performs the usual 3d calculations. The vertex&rsquo;s position and normal are transformed to world space and passed on to the fragment shader. The vertex&rsquo;s screen position is also calculated. All transformations are done with the standard model, view, projection matrices.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">main</span>()
-{
-    Pos <span style="color:#f92672">=</span> vec3(u_ModelMatrix <span style="color:#f92672">*</span> vec4(a_Position, <span style="color:#ae81ff">1.0</span>));
-    Normal <span style="color:#f92672">=</span> u_NormalMatrix <span style="color:#f92672">*</span> a_Normal;
-
-    gl_Position <span style="color:#f92672">=</span> u_ProjectionMatrix <span style="color:#f92672">*</span> u_ViewMatrix <span style="color:#f92672">*</span> u_ModelMatrix <span style="color:#f92672">*</span> vec4(a_Position, <span style="color:#ae81ff">1.0</span>);
-}
-</code></pre></div><h2 id="brdf">BRDF</h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">main</span>()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Pos <span style="color:#f92672">=</span> vec3(u_ModelMatrix <span style="color:#f92672">*</span> vec4(a_Position, <span style="color:#ae81ff">1.0</span>));
+</span></span><span style="display:flex;"><span>    Normal <span style="color:#f92672">=</span> u_NormalMatrix <span style="color:#f92672">*</span> a_Normal;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    gl_Position <span style="color:#f92672">=</span> u_ProjectionMatrix <span style="color:#f92672">*</span> u_ViewMatrix <span style="color:#f92672">*</span> u_ModelMatrix <span style="color:#f92672">*</span> vec4(a_Position, <span style="color:#ae81ff">1.0</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="brdf">BRDF</h2>
 <p>Calculating the BRDF is done in several stages. First the fragments material parameters are packed into a struct for easy access.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">PBRSurfaceData</span>
-{
-    vec3 position;
-    vec3 normal;
-    vec3 albedo;
-    <span style="color:#66d9ef">float</span> metallic;
-    <span style="color:#66d9ef">float</span> roughness;
-};
-</code></pre></div><p>Next, all the relevant dot products between the lighting and surface vectors are calculated.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#66d9ef">float</span> cosNH <span style="color:#f92672">=</span> clamp(dot(surface.normal, halfwayDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
-<span style="color:#66d9ef">float</span> cosNL <span style="color:#f92672">=</span> clamp(dot(surface.normal, lightDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
-<span style="color:#66d9ef">float</span> cosNV <span style="color:#f92672">=</span> clamp(dot(surface.normal, viewDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
-<span style="color:#66d9ef">float</span> cosVH <span style="color:#f92672">=</span> clamp(dot(viewDir, halfwayDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
-</code></pre></div><p>In addition, the base reflectivity and diffuse color are calculated form the surface properties.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp">vec3 F0 <span style="color:#f92672">=</span> mix(vec3(<span style="color:#ae81ff">0.04</span>), surface.albedo, surface.metallic);
-vec3 diffuseColor <span style="color:#f92672">=</span>  (<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> surface.metallic) <span style="color:#f92672">*</span> surface.albedo;
-</code></pre></div><p>With all of the inputs ready, The D, G, and F terms can be calculated. To save time, the common factors between the specular part the G term have been combined by replacing the G term with a &ldquo;view&rdquo; or V term. Each term is calculated by the following functions.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#66d9ef">float</span> <span style="color:#a6e22e">NormalDistribution_GGX</span>(<span style="color:#66d9ef">float</span> cosNH, <span style="color:#66d9ef">float</span> roughness)
-{
-    <span style="color:#66d9ef">float</span> roughnessSquared <span style="color:#f92672">=</span> roughness <span style="color:#f92672">*</span> roughness;
-    <span style="color:#66d9ef">float</span> denominator <span style="color:#f92672">=</span> cosNH <span style="color:#f92672">*</span> cosNH <span style="color:#f92672">*</span> (roughnessSquared <span style="color:#f92672">-</span> <span style="color:#ae81ff">1.0</span>) <span style="color:#f92672">+</span> <span style="color:#ae81ff">1.0</span>;
-    <span style="color:#66d9ef">return</span> roughnessSquared <span style="color:#f92672">/</span> (PI <span style="color:#f92672">*</span> denominator <span style="color:#f92672">*</span> denominator);
-}
-
-<span style="color:#66d9ef">float</span> <span style="color:#a6e22e">View_HCSmith</span>(<span style="color:#66d9ef">float</span> cosNL, <span style="color:#66d9ef">float</span> cosNV, <span style="color:#66d9ef">float</span> roughness)
-{
-    <span style="color:#66d9ef">float</span> Vv <span style="color:#f92672">=</span> cosNL <span style="color:#f92672">*</span> (cosNV <span style="color:#f92672">*</span> (<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> roughness) <span style="color:#f92672">+</span> roughness);
-    <span style="color:#66d9ef">float</span> Vl <span style="color:#f92672">=</span> cosNV <span style="color:#f92672">*</span> (cosNL <span style="color:#f92672">*</span> (<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> roughness) <span style="color:#f92672">+</span> roughness);
-
-    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0.5</span> <span style="color:#f92672">/</span> (Vv <span style="color:#f92672">+</span> Vl);
-}
-
-vec3 <span style="color:#a6e22e">Fresnel_Schlick</span>(<span style="color:#66d9ef">float</span> cosVH, vec3 F0)
-{
-    <span style="color:#66d9ef">return</span> F0 <span style="color:#f92672">+</span> (<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> F0) <span style="color:#f92672">*</span> pow(<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> cosVH, <span style="color:#ae81ff">5.0</span>);
-}
-</code></pre></div><p>The D, V, and F terms are then combined to calculate the diffuse, specular, and total reflectance amplitude.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp">vec3 specular <span style="color:#f92672">=</span> D <span style="color:#f92672">*</span> V <span style="color:#f92672">*</span> F;
-vec3 diffuse <span style="color:#f92672">=</span> (vec3(<span style="color:#ae81ff">1.0</span>) <span style="color:#f92672">-</span> F) <span style="color:#f92672">*</span> diffuseColor <span style="color:#f92672">/</span> PI;
-
-vec3 f <span style="color:#f92672">=</span> diffuse <span style="color:#f92672">+</span> specular;
-
-<span style="color:#66d9ef">return</span> f <span style="color:#f92672">*</span> cosNL;
-</code></pre></div><p>The complete function for calculating the BRDF is as follows.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp">vec3 <span style="color:#a6e22e">BRDF</span>(
-    vec3 viewDir,
-    vec3 lightDir,
-    vec3 halfwayDir,
-    PBRSurfaceData surface)
-{
-    <span style="color:#66d9ef">float</span> cosNH <span style="color:#f92672">=</span> clamp(dot(surface.normal, halfwayDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
-    <span style="color:#66d9ef">float</span> cosNL <span style="color:#f92672">=</span> clamp(dot(surface.normal, lightDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
-    <span style="color:#66d9ef">float</span> cosNV <span style="color:#f92672">=</span> clamp(dot(surface.normal, viewDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
-    <span style="color:#66d9ef">float</span> cosVH <span style="color:#f92672">=</span> clamp(dot(viewDir, halfwayDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
-
-    vec3 F0 <span style="color:#f92672">=</span> mix(vec3(<span style="color:#ae81ff">0.04</span>), surface.albedo, surface.metallic);
-    vec3 diffuseColor <span style="color:#f92672">=</span>  (<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> surface.metallic) <span style="color:#f92672">*</span> surface.albedo;
-
-    <span style="color:#66d9ef">float</span> D <span style="color:#f92672">=</span> NormalDistribution_GGX(cosNH, surface.roughness);
-    <span style="color:#66d9ef">float</span> V <span style="color:#f92672">=</span> View_HCSmith(cosNL, cosNV, surface.roughness);
-    vec3 F <span style="color:#f92672">=</span> Fresnel_Schlick(cosVH, F0);
-
-    vec3 specular <span style="color:#f92672">=</span> D <span style="color:#f92672">*</span> V <span style="color:#f92672">*</span> F;
-    vec3 diffuse <span style="color:#f92672">=</span> (vec3(<span style="color:#ae81ff">1.0</span>) <span style="color:#f92672">-</span> F) <span style="color:#f92672">*</span> diffuseColor <span style="color:#f92672">/</span> PI;
-
-    vec3 f <span style="color:#f92672">=</span> diffuse <span style="color:#f92672">+</span> specular;
-
-    <span style="color:#66d9ef">return</span> f <span style="color:#f92672">*</span> cosNL;
-}
-</code></pre></div><h2 id="lighting">Lighting</h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">PBRSurfaceData</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    vec3 position;
+</span></span><span style="display:flex;"><span>    vec3 normal;
+</span></span><span style="display:flex;"><span>    vec3 albedo;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> metallic;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> roughness;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>Next, all the relevant dot products between the lighting and surface vectors are calculated.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">float</span> cosNH <span style="color:#f92672">=</span> clamp(dot(surface.normal, halfwayDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">float</span> cosNL <span style="color:#f92672">=</span> clamp(dot(surface.normal, lightDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">float</span> cosNV <span style="color:#f92672">=</span> clamp(dot(surface.normal, viewDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">float</span> cosVH <span style="color:#f92672">=</span> clamp(dot(viewDir, halfwayDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
+</span></span></code></pre></div><p>In addition, the base reflectivity and diffuse color are calculated form the surface properties.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span>vec3 F0 <span style="color:#f92672">=</span> mix(vec3(<span style="color:#ae81ff">0.04</span>), surface.albedo, surface.metallic);
+</span></span><span style="display:flex;"><span>vec3 diffuseColor <span style="color:#f92672">=</span>  (<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> surface.metallic) <span style="color:#f92672">*</span> surface.albedo;
+</span></span></code></pre></div><p>With all of the inputs ready, The D, G, and F terms can be calculated. To save time, the common factors between the specular part the G term have been combined by replacing the G term with a &ldquo;view&rdquo; or V term. Each term is calculated by the following functions.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">float</span> <span style="color:#a6e22e">NormalDistribution_GGX</span>(<span style="color:#66d9ef">float</span> cosNH, <span style="color:#66d9ef">float</span> roughness)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> roughnessSquared <span style="color:#f92672">=</span> roughness <span style="color:#f92672">*</span> roughness;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> denominator <span style="color:#f92672">=</span> cosNH <span style="color:#f92672">*</span> cosNH <span style="color:#f92672">*</span> (roughnessSquared <span style="color:#f92672">-</span> <span style="color:#ae81ff">1.0</span>) <span style="color:#f92672">+</span> <span style="color:#ae81ff">1.0</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> roughnessSquared <span style="color:#f92672">/</span> (PI <span style="color:#f92672">*</span> denominator <span style="color:#f92672">*</span> denominator);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">float</span> <span style="color:#a6e22e">View_HCSmith</span>(<span style="color:#66d9ef">float</span> cosNL, <span style="color:#66d9ef">float</span> cosNV, <span style="color:#66d9ef">float</span> roughness)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> Vv <span style="color:#f92672">=</span> cosNL <span style="color:#f92672">*</span> (cosNV <span style="color:#f92672">*</span> (<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> roughness) <span style="color:#f92672">+</span> roughness);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> Vl <span style="color:#f92672">=</span> cosNV <span style="color:#f92672">*</span> (cosNL <span style="color:#f92672">*</span> (<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> roughness) <span style="color:#f92672">+</span> roughness);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0.5</span> <span style="color:#f92672">/</span> (Vv <span style="color:#f92672">+</span> Vl);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vec3 <span style="color:#a6e22e">Fresnel_Schlick</span>(<span style="color:#66d9ef">float</span> cosVH, vec3 F0)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> F0 <span style="color:#f92672">+</span> (<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> F0) <span style="color:#f92672">*</span> pow(<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> cosVH, <span style="color:#ae81ff">5.0</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The D, V, and F terms are then combined to calculate the diffuse, specular, and total reflectance amplitude.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span>vec3 specular <span style="color:#f92672">=</span> D <span style="color:#f92672">*</span> V <span style="color:#f92672">*</span> F;
+</span></span><span style="display:flex;"><span>vec3 diffuse <span style="color:#f92672">=</span> (vec3(<span style="color:#ae81ff">1.0</span>) <span style="color:#f92672">-</span> F) <span style="color:#f92672">*</span> diffuseColor <span style="color:#f92672">/</span> PI;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>vec3 f <span style="color:#f92672">=</span> diffuse <span style="color:#f92672">+</span> specular;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">return</span> f <span style="color:#f92672">*</span> cosNL;
+</span></span></code></pre></div><p>The complete function for calculating the BRDF is as follows.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span>vec3 <span style="color:#a6e22e">BRDF</span>(
+</span></span><span style="display:flex;"><span>    vec3 viewDir,
+</span></span><span style="display:flex;"><span>    vec3 lightDir,
+</span></span><span style="display:flex;"><span>    vec3 halfwayDir,
+</span></span><span style="display:flex;"><span>    PBRSurfaceData surface)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> cosNH <span style="color:#f92672">=</span> clamp(dot(surface.normal, halfwayDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> cosNL <span style="color:#f92672">=</span> clamp(dot(surface.normal, lightDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> cosNV <span style="color:#f92672">=</span> clamp(dot(surface.normal, viewDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> cosVH <span style="color:#f92672">=</span> clamp(dot(viewDir, halfwayDir), <span style="color:#ae81ff">1.0e-6</span>, <span style="color:#ae81ff">1.0</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    vec3 F0 <span style="color:#f92672">=</span> mix(vec3(<span style="color:#ae81ff">0.04</span>), surface.albedo, surface.metallic);
+</span></span><span style="display:flex;"><span>    vec3 diffuseColor <span style="color:#f92672">=</span>  (<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> surface.metallic) <span style="color:#f92672">*</span> surface.albedo;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> D <span style="color:#f92672">=</span> NormalDistribution_GGX(cosNH, surface.roughness);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> V <span style="color:#f92672">=</span> View_HCSmith(cosNL, cosNV, surface.roughness);
+</span></span><span style="display:flex;"><span>    vec3 F <span style="color:#f92672">=</span> Fresnel_Schlick(cosVH, F0);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    vec3 specular <span style="color:#f92672">=</span> D <span style="color:#f92672">*</span> V <span style="color:#f92672">*</span> F;
+</span></span><span style="display:flex;"><span>    vec3 diffuse <span style="color:#f92672">=</span> (vec3(<span style="color:#ae81ff">1.0</span>) <span style="color:#f92672">-</span> F) <span style="color:#f92672">*</span> diffuseColor <span style="color:#f92672">/</span> PI;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    vec3 f <span style="color:#f92672">=</span> diffuse <span style="color:#f92672">+</span> specular;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> f <span style="color:#f92672">*</span> cosNL;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="lighting">Lighting</h2>
 <p>For this demo, I only implemented a point light which is parameterized by the following data.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">PointLight</span>
-{
-    vec3 position;
-    <span style="color:#66d9ef">float</span> radiantFlux;
-    <span style="color:#66d9ef">float</span> range;
-    vec3 color;
-};
-</code></pre></div><p>The reflected radiance of a point light takes as input this point light struct, plus the PBRSurface struct from before. First the relevant geometric variables are calculated.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#66d9ef">float</span> separation <span style="color:#f92672">=</span> length(light.position <span style="color:#f92672">-</span> surface.position);
-vec3 viewDir <span style="color:#f92672">=</span> normalize(u_viewPos <span style="color:#f92672">-</span> surface.position);
-vec3 lightDir <span style="color:#f92672">=</span> normalize(light.position <span style="color:#f92672">-</span> surface.position);
-vec3 halfwayDir <span style="color:#f92672">=</span> normalize(lightDir <span style="color:#f92672">+</span> viewDir);
-</code></pre></div><p>The attenuation is calculated using the inverse square law, plus another factor that windows the light to a certain range.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#66d9ef">float</span> <span style="color:#a6e22e">PunctualLightAttenuation</span>(<span style="color:#66d9ef">float</span> separation, <span style="color:#66d9ef">float</span> range)
-{
-    <span style="color:#66d9ef">float</span> separation2 <span style="color:#f92672">=</span> separation <span style="color:#f92672">*</span> separation;
-    <span style="color:#66d9ef">float</span> relativeRange <span style="color:#f92672">=</span> min(<span style="color:#ae81ff">1.0</span>, separation <span style="color:#f92672">/</span> range);
-    <span style="color:#66d9ef">float</span> relativeRange4 <span style="color:#f92672">=</span> relativeRange <span style="color:#f92672">*</span> relativeRange <span style="color:#f92672">*</span> relativeRange <span style="color:#f92672">*</span> relativeRange;
-
-    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">1.0</span> <span style="color:#f92672">/</span> (separation2 <span style="color:#f92672">+</span> <span style="color:#ae81ff">1.0e-6</span>) <span style="color:#f92672">*</span> (<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> relativeRange4);
-}
-</code></pre></div><p>The light radiance, and the BRDF are then calculated and combined into the final result. The complete function for reflectance is as follows.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp">vec3 <span style="color:#a6e22e">PointLightReflectedRadiance</span>(
-    PointLight light,
-    PBRSurfaceData surface)
-{
-    <span style="color:#66d9ef">float</span> separation <span style="color:#f92672">=</span> length(light.position <span style="color:#f92672">-</span> surface.position);
-    vec3 viewDir <span style="color:#f92672">=</span> normalize(u_viewPos <span style="color:#f92672">-</span> surface.position);
-    vec3 lightDir <span style="color:#f92672">=</span> normalize(light.position <span style="color:#f92672">-</span> surface.position);
-    vec3 halfwayDir <span style="color:#f92672">=</span> normalize(lightDir <span style="color:#f92672">+</span> viewDir);
-
-    <span style="color:#66d9ef">float</span> A <span style="color:#f92672">=</span> PunctualLightAttenuation(separation, light.range);
-    vec3 f <span style="color:#f92672">=</span> BRDF(viewDir, lightDir, halfwayDir, surface);
-    vec3 L0 <span style="color:#f92672">=</span> light.color <span style="color:#f92672">*</span> light.radiantFlux <span style="color:#f92672">/</span> (<span style="color:#ae81ff">4.0</span> <span style="color:#f92672">*</span> PI);
-
-    <span style="color:#66d9ef">return</span> L0 <span style="color:#f92672">*</span> A <span style="color:#f92672">*</span> f;
-}
-</code></pre></div><h1 id="putting-it-all-together">Putting It All Together</h1>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">PointLight</span>
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    vec3 position;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> radiantFlux;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> range;
+</span></span><span style="display:flex;"><span>    vec3 color;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>The reflected radiance of a point light takes as input this point light struct, plus the PBRSurface struct from before. First the relevant geometric variables are calculated.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">float</span> separation <span style="color:#f92672">=</span> length(light.position <span style="color:#f92672">-</span> surface.position);
+</span></span><span style="display:flex;"><span>vec3 viewDir <span style="color:#f92672">=</span> normalize(u_viewPos <span style="color:#f92672">-</span> surface.position);
+</span></span><span style="display:flex;"><span>vec3 lightDir <span style="color:#f92672">=</span> normalize(light.position <span style="color:#f92672">-</span> surface.position);
+</span></span><span style="display:flex;"><span>vec3 halfwayDir <span style="color:#f92672">=</span> normalize(lightDir <span style="color:#f92672">+</span> viewDir);
+</span></span></code></pre></div><p>The attenuation is calculated using the inverse square law, plus another factor that windows the light to a certain range.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">float</span> <span style="color:#a6e22e">PunctualLightAttenuation</span>(<span style="color:#66d9ef">float</span> separation, <span style="color:#66d9ef">float</span> range)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> separation2 <span style="color:#f92672">=</span> separation <span style="color:#f92672">*</span> separation;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> relativeRange <span style="color:#f92672">=</span> min(<span style="color:#ae81ff">1.0</span>, separation <span style="color:#f92672">/</span> range);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> relativeRange4 <span style="color:#f92672">=</span> relativeRange <span style="color:#f92672">*</span> relativeRange <span style="color:#f92672">*</span> relativeRange <span style="color:#f92672">*</span> relativeRange;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">1.0</span> <span style="color:#f92672">/</span> (separation2 <span style="color:#f92672">+</span> <span style="color:#ae81ff">1.0e-6</span>) <span style="color:#f92672">*</span> (<span style="color:#ae81ff">1.0</span> <span style="color:#f92672">-</span> relativeRange4);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>The light radiance, and the BRDF are then calculated and combined into the final result. The complete function for reflectance is as follows.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span>vec3 <span style="color:#a6e22e">PointLightReflectedRadiance</span>(
+</span></span><span style="display:flex;"><span>    PointLight light,
+</span></span><span style="display:flex;"><span>    PBRSurfaceData surface)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> separation <span style="color:#f92672">=</span> length(light.position <span style="color:#f92672">-</span> surface.position);
+</span></span><span style="display:flex;"><span>    vec3 viewDir <span style="color:#f92672">=</span> normalize(u_viewPos <span style="color:#f92672">-</span> surface.position);
+</span></span><span style="display:flex;"><span>    vec3 lightDir <span style="color:#f92672">=</span> normalize(light.position <span style="color:#f92672">-</span> surface.position);
+</span></span><span style="display:flex;"><span>    vec3 halfwayDir <span style="color:#f92672">=</span> normalize(lightDir <span style="color:#f92672">+</span> viewDir);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">float</span> A <span style="color:#f92672">=</span> PunctualLightAttenuation(separation, light.range);
+</span></span><span style="display:flex;"><span>    vec3 f <span style="color:#f92672">=</span> BRDF(viewDir, lightDir, halfwayDir, surface);
+</span></span><span style="display:flex;"><span>    vec3 L0 <span style="color:#f92672">=</span> light.color <span style="color:#f92672">*</span> light.radiantFlux <span style="color:#f92672">/</span> (<span style="color:#ae81ff">4.0</span> <span style="color:#f92672">*</span> PI);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> L0 <span style="color:#f92672">*</span> A <span style="color:#f92672">*</span> f;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h1 id="putting-it-all-together">Putting It All Together</h1>
 <p>Everything for the fragment shaders main function is now ready. The function packs the relevant data ino the light and surface structures, accumulates the reflected radiance from all the light sources, and finally tone-maps and gamma corrects the result.</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp"><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">main</span>()
-{
-    PointLight light;
-    light.radiantFlux <span style="color:#f92672">=</span> <span style="color:#ae81ff">3000.0</span>;
-    light.range <span style="color:#f92672">=</span> <span style="color:#ae81ff">100.0</span>;
-    light.color <span style="color:#f92672">=</span> vec3(<span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">1.0</span>);
-
-    PBRSurfaceData surface;
-    surface.position <span style="color:#f92672">=</span> Pos;
-    surface.normal <span style="color:#f92672">=</span> normalize(Normal);
-    surface.albedo <span style="color:#f92672">=</span> u_albedo;
-    surface.metallic <span style="color:#f92672">=</span> u_metallic;
-    surface.roughness <span style="color:#f92672">=</span> u_roughness <span style="color:#f92672">*</span> u_roughness;
-
-    vec3 result <span style="color:#f92672">=</span> vec3(<span style="color:#ae81ff">0.0</span>, <span style="color:#ae81ff">0.0</span>, <span style="color:#ae81ff">0.0</span>);
-
-    light.position <span style="color:#f92672">=</span> vec3(<span style="color:#ae81ff">0.0</span>, <span style="color:#f92672">-</span><span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">10.0</span>);
-    result <span style="color:#f92672">=</span> PointLightReflectedRadiance(light, surface);
-
-    light.position <span style="color:#f92672">=</span> vec3(<span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">10.0</span>);
-    result <span style="color:#f92672">+=</span> PointLightReflectedRadiance(light, surface);
-
-    light.position <span style="color:#f92672">=</span> vec3(<span style="color:#f92672">-</span><span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">10.0</span>);
-    result <span style="color:#f92672">+=</span> PointLightReflectedRadiance(light, surface);
-
-    result <span style="color:#f92672">+=</span> <span style="color:#ae81ff">0.2</span> <span style="color:#f92672">*</span> surface.albedo;
-
-    result <span style="color:#f92672">=</span> result <span style="color:#f92672">/</span> (result <span style="color:#f92672">+</span> vec3(<span style="color:#ae81ff">1.0</span>));
-    result <span style="color:#f92672">=</span> pow(result, vec3(<span style="color:#ae81ff">1.0</span><span style="color:#f92672">/</span><span style="color:#ae81ff">2.2</span>)); 
-
-    gl_FragColor <span style="color:#f92672">=</span> vec4(result, <span style="color:#ae81ff">1.0</span>);
-}
-</code></pre></div>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">main</span>()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    PointLight light;
+</span></span><span style="display:flex;"><span>    light.radiantFlux <span style="color:#f92672">=</span> <span style="color:#ae81ff">3000.0</span>;
+</span></span><span style="display:flex;"><span>    light.range <span style="color:#f92672">=</span> <span style="color:#ae81ff">100.0</span>;
+</span></span><span style="display:flex;"><span>    light.color <span style="color:#f92672">=</span> vec3(<span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">1.0</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    PBRSurfaceData surface;
+</span></span><span style="display:flex;"><span>    surface.position <span style="color:#f92672">=</span> Pos;
+</span></span><span style="display:flex;"><span>    surface.normal <span style="color:#f92672">=</span> normalize(Normal);
+</span></span><span style="display:flex;"><span>    surface.albedo <span style="color:#f92672">=</span> u_albedo;
+</span></span><span style="display:flex;"><span>    surface.metallic <span style="color:#f92672">=</span> u_metallic;
+</span></span><span style="display:flex;"><span>    surface.roughness <span style="color:#f92672">=</span> u_roughness <span style="color:#f92672">*</span> u_roughness;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    vec3 result <span style="color:#f92672">=</span> vec3(<span style="color:#ae81ff">0.0</span>, <span style="color:#ae81ff">0.0</span>, <span style="color:#ae81ff">0.0</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    light.position <span style="color:#f92672">=</span> vec3(<span style="color:#ae81ff">0.0</span>, <span style="color:#f92672">-</span><span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">10.0</span>);
+</span></span><span style="display:flex;"><span>    result <span style="color:#f92672">=</span> PointLightReflectedRadiance(light, surface);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    light.position <span style="color:#f92672">=</span> vec3(<span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">10.0</span>);
+</span></span><span style="display:flex;"><span>    result <span style="color:#f92672">+=</span> PointLightReflectedRadiance(light, surface);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    light.position <span style="color:#f92672">=</span> vec3(<span style="color:#f92672">-</span><span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">1.0</span>, <span style="color:#ae81ff">10.0</span>);
+</span></span><span style="display:flex;"><span>    result <span style="color:#f92672">+=</span> PointLightReflectedRadiance(light, surface);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    result <span style="color:#f92672">+=</span> <span style="color:#ae81ff">0.2</span> <span style="color:#f92672">*</span> surface.albedo;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    result <span style="color:#f92672">=</span> result <span style="color:#f92672">/</span> (result <span style="color:#f92672">+</span> vec3(<span style="color:#ae81ff">1.0</span>));
+</span></span><span style="display:flex;"><span>    result <span style="color:#f92672">=</span> pow(result, vec3(<span style="color:#ae81ff">1.0</span><span style="color:#f92672">/</span><span style="color:#ae81ff">2.2</span>)); 
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    gl_FragColor <span style="color:#f92672">=</span> vec4(result, <span style="color:#ae81ff">1.0</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div>
 </article>
 
 

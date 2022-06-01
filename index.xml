@@ -17,6 +17,16 @@ This blog is a place where I post about my personal projects, things I&amp;rsquo
     </item>
     
     <item>
+      <title>Image Based Lighting</title>
+      <link>https://kshatos.github.io/posts/image_based_lighting/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://kshatos.github.io/posts/image_based_lighting/</guid>
+      <description>RedGreenBlueMetallicRoughnessBrightnessWith the proper framework in place and point lights under our belt, how can we handle more complicated lighting conditions?
+Ambient Light Most scene objects are lit largely by ambient light. This is just the light reflected off of the background objects in the scene. The ambient light from a scene can be modeled as a continuum of point lights, infinitely far away.</description>
+    </item>
+    
+    <item>
       <title>Physically Based Rendering</title>
       <link>https://kshatos.github.io/posts/physically_based_rendering/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
